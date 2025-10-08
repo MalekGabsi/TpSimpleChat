@@ -24,12 +24,14 @@ public class SimpleChatServer {
                 // IMPORTANT : la méthode "accept" est bloquante pour le thread, elle se
                 // débloque lorsqu'une connexion est établie avec un client
                 SocketChannel clientSocket = serverSocketChannel.accept();
+                //accept fonction bloquante
                 PrintWriter writer = new PrintWriter(Channels.newWriter(clientSocket, UTF_8));
                 clientWriters.add(writer);
                 // On lance un nouveau thread pour gérer les messages de ce client, et on le met
                 // dans le pool de threads
                 threadPool.submit(new ClientHandler(clientSocket));
                 System.out.println("got a connection");
+                //a chaque fois un client sajoute , il va etre entrer dans le thread pool 
             }
         } catch (IOException ex) {
             ex.printStackTrace();
@@ -57,9 +59,10 @@ public class SimpleChatServer {
             try {
                 // IMPORTANT : la méthode readLine est bloquante, elle attend qu'une ligne
                 // soit disponible
+                //boucle infini 
                 while ((message = reader.readLine()) != null) {
                     System.out.println("read " + message);
-                    tellEveryone(message);
+                    tellEveryone(message); // saisir une message
                 }
             } catch (IOException ex) {
                 ex.printStackTrace();

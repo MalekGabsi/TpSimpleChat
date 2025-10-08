@@ -4,13 +4,19 @@ import javax.swing.*;
 import java.awt.*;
 import java.io.*;
 import java.net.InetSocketAddress;
-import java.nio.channels.*;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.SocketChannel;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class SimpleChatClientWithNotifications {
     private JTextArea incoming;
     private JTextField outgoing;
     private PrintWriter writer;
+    private SocketChannel socketChannel;
 
     public void go() {
         setUpNetworking();
@@ -18,6 +24,7 @@ public class SimpleChatClientWithNotifications {
         outgoing = new JTextField(20);
         JButton sendButton = new JButton("Send");
         sendButton.addActionListener(e -> sendMessage());
+
         JPanel mainPanel = new JPanel();
         mainPanel.add(scroller);
         mainPanel.add(outgoing);
@@ -29,11 +36,9 @@ public class SimpleChatClientWithNotifications {
         frame.setVisible(true);
         frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
 
-        // TODO : Créer un ExecutorService pour gérer le thread de lecture des messages
-        // Choisir parmis les implémentations d'ExecutorService, celle qui vous semble
-        // la plus adaptée : newFixedThreadPool, newSingleThreadExecutor,
-        // newCachedThreadPool...
-
+        // Création d'un thread pour lire les messages entrants
+        ExecutorService es = Executors.newSingleThreadExecutor();
+        es.execute(new IncomingReader());
     }
 
     private JScrollPane createScrollableTextArea() {
@@ -49,12 +54,9 @@ public class SimpleChatClientWithNotifications {
 
     private void setUpNetworking() {
         try {
-            // serverAddress represente l'adresse complete de la machine serveur
             InetSocketAddress serverAddress = new InetSocketAddress("127.0.0.1", 5000);
-            // On ouvre la connexion
-            SocketChannel socketChannel = SocketChannel.open(serverAddress);
-            // On crée un "Writer" pour envoyer des donnees a travers le SocketChannel
-            writer = new PrintWriter(Channels.newWriter(socketChannel, UTF_8));
+            socketChannel = SocketChannel.open(serverAddress);
+            writer = new PrintWriter(Channels.newWriter(socketChannel, UTF_8), true);
             System.out.println("Networking established.");
         } catch (IOException e) {
             e.printStackTrace();
@@ -66,6 +68,27 @@ public class SimpleChatClientWithNotifications {
         writer.flush();
         outgoing.setText("");
         outgoing.requestFocus();
+    }
+
+    // Thread de lecture des messages entrants
+    public class IncomingReader implements Runnable {
+        @Override
+        public void run() {
+            ByteBuffer buffer = ByteBuffer.allocate(512);
+            try {
+                while (true) {
+                    buffer.clear();
+                    int bytesRead = socketChannel.read(buffer);
+                    if (bytesRead == -1) break; // serveur fermé
+                    buffer.flip();
+                    String message = UTF_8.decode(buffer).toString();
+                    // Mise à jour de l'UI sur le thread Swing
+                    SwingUtilities.invokeLater(() -> incoming.append(message + "\n"));
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     public static void main(String[] args) {
